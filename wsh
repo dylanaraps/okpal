@@ -110,8 +110,7 @@ pal() {
     # and add every 3rd item of each line to the
     # argument list.
     while IFS=" #" read -r _ _ col _; do j=$((j + 1))
-        [ "$j" -lt 10 ] && continue
-        [ "$j" -gt 16 ] && break
+        [ "$j" -gt 7 ] && break
 
         set -- "$@" "$col"
     done < "$cac/c$$"
