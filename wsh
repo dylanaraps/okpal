@@ -5,6 +5,55 @@ die() {
     exit 1
 }
 
+hex2rgb() {
+    set -- "${1##\#}"
+
+    # Ensure that we're dealing with hex that is
+    # six characters in length.
+    case ${#1}$1 in 6*[G-Zg-z]*) 
+        die "Invalid hex input"
+    esac
+
+    # Split the string into three portions in a
+    # really lazy way..
+    r=${1%%????}
+    g=${1##??}
+    g=${g%%??}
+    b=${1##????}
+
+    # This is quite possibly _not_ POSIX shell.
+    # This can also cause the shell to crash when
+    # fed invalid input.
+    r=$((0x$r))
+    g=$((0x$g))
+    b=$((0x$b))
+}
+
+mod() {
+    # This function naively messes around with
+    # (hex) colors.
+    hex2rgb "$2"
+
+    # The operator is stored in a variable
+    # which makes shellcheck freak out.
+    # shellcheck disable=1102,2086
+    {
+        r=$((r $3 $4))
+        g=$((g $3 $4))
+        b=$((b $3 $4))
+    }
+
+    # Ensure that all input is within the range of
+    # 0-255 and correct any issues.
+    r=$((r > 255 ? 255 : r < 0 ? 0 : r))
+    g=$((g > 255 ? 255 : g < 0 ? 0 : g))
+    b=$((b > 255 ? 255 : b < 0 ? 0 : b))
+
+    # Abuse export to dynamically name and declare
+    # variables. This also makes it global.
+    export "$1=$(printf '%02x%02x%02x' "$r" "$g" "$b")"
+}
+
 img() {
     # Grab a random 3 digit number from /dev/urandom
     # and use it to select a random image from the
@@ -43,12 +92,47 @@ col() {
     # This is a lot easier than trying to pass around
     # strings with a separator and splitting endlessly.
     convert "$img" \
-        -alpha  off \
-        -fill   white \
-        -colors 16 \
+               -resize 512x \
+                -alpha off \
+                 -fill white \
+            -posterize 24 \
+             -modulate 200,150,100 \
         -unique-colors \
-        txt:- \
+                 txt:- \
     > "$cac/c$$"
+}
+
+pal() {
+    # Convert the colors extracted from the image into
+    # a usable terminal color palette.
+    #
+    # Read the raw imagemagick output, split on ' #'
+    # and add every 3rd item of each line to the
+    # argument list.
+    while IFS=" #" read -r _ _ col _; do j=$((j + 1))
+        [ "$j" -lt 10 ] && continue
+        [ "$j" -gt 16 ] && break
+
+        set -- "$@" "$col"
+    done < "$cac/c$$"
+
+    # Imagemagick adds a header line to the output.
+    shift
+
+    # These variables are dynamically defined,
+    # ignore undeclared variable warnings.
+    # shellcheck disable=2154
+    {
+        mod bg "$2"  / 4
+        mod fg "$2"  + 150
+        mod co "$bg" + 90
+
+        set -- "$bg" "$@" "$fg" "$co" "$@" "$fg"
+    }
+
+    echo "$#" >/dev/tty
+    printf '%s\n' "$@" >&6
+    printf '%s\n' "$@" | paleta
 }
 
 main() {
@@ -81,7 +165,7 @@ main() {
         die "File '$file' doesn't exist"
     done
 
-    img "$@"; wal "$img"; col "$img"
+    img "$@"; wal "$img"; col "$img"; pal
 }
 
 main "$@"
