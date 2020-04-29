@@ -1,7 +1,7 @@
 #!/bin/sh -ef
 
 die() {
-    printf '%s\n' "$@" >&6
+    printf '%s\n' "${1:-Usage: ${0##*/}: [-v] img img img}" >&6
     exit 1
 }
 
@@ -150,14 +150,18 @@ main() {
 
     # Parse the options "inline" instead of via a function
     # so that we can mofigy the script's global argument list.
-    while getopts v opt; do case $opt in 
+    while getopts vV opt; do case $opt in 
         v) exec 2>&6 ;;
-        ?) die "Usage: %s: [-s] image\n" "${0##*/}"
+        V) die "0.0.1" ;;
+        ?) die ;;
     esac; done
 
     # Argument parsing is done, shift what we've parsed to
     # leave the list of images.
     shift "$((OPTIND - 1))"
+
+    # There's no image to operate on.
+    [ "$1" ] || die
 
     # Do all file checks here so that we can carry on
     # blindly later.
