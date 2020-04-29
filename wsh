@@ -91,12 +91,12 @@ col() {
     #
     # This is a lot easier than trying to pass around
     # strings with a separator and splitting endlessly.
-    convert "$img" \
+    "$magick" "$img" \
         -resize 512x \
         -alpha  off \
         -fill   white \
-        -posterize 24 \
-        -modulate  200,150,100 \
+        -posterize 6 \
+        -colors 16 \
         -unique-colors \
         txt:- \
     > "$cac/c$$"
@@ -185,6 +185,10 @@ main() {
     # Create the cache directory which will store the
     # palettes and other needed data.
     mkdir -p "${cac:=${XDG_CACHE_HOME:=$HOME/.cache}/${0##*/}}"
+
+    # Figure out what imagemagick is called.
+    magick=$(command -v convert || command -v magick) ||
+        die "Imagemagick not installed"
 
     # Parse the options "inline" instead of via a function
     # so that we can mofigy the script's global argument list.
