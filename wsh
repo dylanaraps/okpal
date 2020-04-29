@@ -1,0 +1,74 @@
+#!/bin/sh -ef
+
+die() {
+    printf '%s\n' "$@" >&6
+    exit 1
+}
+
+img() {
+    shift "$(($(
+        tr -dc 1-9 < /dev/urandom |
+        dd ibs=1 obs=1 count=3
+    ) % $#))" 
+
+    img=$1
+}
+
+wal() {
+           feh --bg-fill              "$img" ||
+    xwallpaper --zoom                 "$img" ||
+      nitrogen --set-zoom-fill        "$img" ||
+           bgs -z                     "$img" ||
+      hsetroot -fill                  "$img" ||
+         habak -mS                    "$img" ||
+       display -backdrop -window root "$img" ||
+
+    [ $? != 127 ] || die "Failed to set the wallpaper"
+}
+
+col() {
+    convert "$img" \
+        -alpha  off \
+        -fill   white \
+        -colors 16 \
+        -unique-colors \
+        txt:- \
+    > "$cac/c"
+
+    cat "$cac/c" >&6
+}
+
+main() {
+    # Speed things up by disabling the use of unicode
+    # and sticking to the C locale..
+    export LC_ALL=C 
+
+    # Hide stdout/stderr by default to allow for selective
+    # and controlled printing to the two.
+    exec 2>/dev/null 6>&1 >/dev/null
+
+    # Create the cache directory which will store the
+    # palettes and other needed data.
+    mkdir -p "${cac:=${XDG_CACHE_HOME:=$HOME/.cache}/${0##*/}}"
+
+    # Parse the options "inline" instead of via a function
+    # so that we can mofigy the script's global argument list.
+    while getopts v opt; do case $opt in 
+        v) exec 2>&6 ;;
+        ?) die "Usage: %s: [-s] image\n" "${0##*/}"
+    esac; done
+
+    # Argument parsing is done, shift what we've parsed to
+    # leave the list of images.
+    shift "$((OPTIND - 1))"
+
+    # Do all file checks here so that we can carry on
+    # blindly later.
+    for file do [ -f "$file" ] || 
+        die "File '$file' doesn't exist"
+    done
+
+    img "$@"; wal "$img"; col "$img"
+}
+
+main "$@"
