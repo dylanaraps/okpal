@@ -6,6 +6,12 @@ die() {
 }
 
 img() {
+    # Grab a random 3 digit number from /dev/urandom
+    # and use it to select a random image from the
+    # list given as input.
+    #
+    # This still works when there is only a single 
+    # image passed on the command-line.
     shift "$(($(
         tr -dc 1-9 < /dev/urandom |
         dd ibs=1 obs=1 count=3
@@ -15,6 +21,9 @@ img() {
 }
 
 wal() {
+    # Set the wallpaper by running each one. If the
+    # exit status is '127' (command not found),
+    # we die. If the command succeeds, we return.
            feh --bg-fill              "$img" ||
     xwallpaper --zoom                 "$img" ||
       nitrogen --set-zoom-fill        "$img" ||
@@ -27,15 +36,19 @@ wal() {
 }
 
 col() {
+    # Run imagemagick to generate the palette and store
+    # the result in a temporary file. We'll then later
+    # read from this file to operate on the information.
+    #
+    # This is a lot easier than trying to pass around
+    # strings with a separator and splitting endlessly.
     convert "$img" \
         -alpha  off \
         -fill   white \
         -colors 16 \
         -unique-colors \
         txt:- \
-    > "$cac/c"
-
-    cat "$cac/c" >&6
+    > "$cac/c$$"
 }
 
 main() {
