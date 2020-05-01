@@ -1,7 +1,7 @@
 #!/bin/sh
 
 die() {
-    printf '%s\n' "$1" >&6
+    printf '%s\n' "$@" >&6
     exit 1
 }
 
@@ -112,6 +112,8 @@ list_palette() {
             printf '%s\n' "${pal##*/}"
         }
     done >&6
+
+    exit 0
 }
 
 rand_palette() {
@@ -149,20 +151,28 @@ args() {
     # so that we can mofigy the script's global argument list.
     mode=dark
 
-    while getopts lLrs:v opt; do case $opt in
+    while getopts hlLrs:v opt; do case $opt in
         l) list=1 ;;
         L) mode=light ;;
         r) rand=1 ;;
         s) palette=$OPTARG ;;
         v) die "0.0.1" ;;
-        *) die "usage: ${0##*/} [-s palette | -r] [-l|-v]" ;;
+
+        *)
+            die "usage: ${0##*/} [-s palette|-L|-r] [-l|-v]" \
+                "-s palette  Select a palette" \
+                "-l          List all palettes" \
+                "-r          Select a random palette" \
+                "-L          Set light themes (modifier for -s/-r)" \
+                "-h          Show this information" \
+                "-v          Show version information"
+        ;;
     esac; done
 
-    [ "$list" ] &&
-        list_palette
-
-    [ "$rand" ] &&
-        rand_palette
+    [ "$1" ]       || args -h
+    [ "$list" ]    && list_palette
+    [ "$rand" ]    && rand_palette
+    [ "$palette" ] || args -h
 
     [ "$palette" ] && [ -z "$list" ] && {
         read_palette "$palette"
