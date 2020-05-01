@@ -1,0 +1,134 @@
+#!/bin/sh
+
+die() {
+    printf '%s\n' "$1" >&6
+    exit 1
+}
+
+pal() {
+    # Where does the desired palette reside?
+    [ -f "/etc/okpal/palettes/$1" ] && palette=/etc/okpal/palettes/$1
+    [ -f "$cac/palettes/$1" ]       && palette=$cac/palettes/$1
+    [ -f "palettes/$1" ]            && palette=palettes/$1
+    [ -f "$1" ]                     && palette=$1
+
+    # Each line in the palette file is a valid shell 
+    # variable. This simply exports all of them into
+    # the script's environment.
+    while read -r line; do i=$((i + 1))
+        export "${line?Invalid palette file}" || die
+    done < "${palette:?Palette not found}"
+
+    [ "$i" -eq 15 ] || die "Missing fields in palette file"
+}
+
+seq() {
+    # Convert the list of colors into a series of
+    # escape sequences which will then be applied
+    # to each terminal.
+    seq_add() { seqs="$seqs]$1;#$2\\"; }
+
+    # The regular 16 colors.
+    seq_add "4;0"  "${color00:=ffffff}"
+    seq_add "4;1"  "${color01:=ffffff}"
+    seq_add "4;2"  "${color02:=ffffff}"
+    seq_add "4;3"  "${color03:=ffffff}"
+    seq_add "4;4"  "${color04:=ffffff}"
+    seq_add "4;5"  "${color05:=ffffff}"
+    seq_add "4;6"  "${color06:=ffffff}"
+    seq_add "4;7"  "${color07:=ffffff}"
+    seq_add "4;8"  "${color08:=555555}"
+    seq_add "4;9"  "${color09:=ffffff}"
+    seq_add "4;10" "${color10:=ffffff}"
+    seq_add "4;11" "${color11:=ffffff}"
+    seq_add "4;12" "${color12:=ffffff}"
+    seq_add "4;13" "${color13:=ffffff}"
+    seq_add "4;14" "${color14:=ffffff}"
+    seq_add "4;15" "${color15:=ffffff}"
+
+    # Special colors.
+    seq_add 10 "${foreground:=ffffff}"
+    seq_add 11 "${background:=000000}"
+    seq_add 12     "${cursor:=999999}"
+
+    # Border background color.
+    # (VTE doesn't handle unknown sequences very well.
+    #  Skip this sequence if running in VTE.)
+    [ "$VTE_VERSION" ] || seq_add 708 "$background"
+
+    # Send the sequence list to every terminal device
+    # we have write permissions to.
+    for tty in /dev/fd/0 /dev/pts/[0-9]*; do 
+        [ ! -w "$tty" ] || printf %b "$seqs" > "$tty" &
+    done
+}
+
+art() {
+    # Construst a palette of the generated colorscheme
+    # so the user can see what it looks like straight away.
+    printf 'Using palette: %s/' "${palette%/*}" >&6
+
+    pal_name=${palette##*/}
+
+    # Rainbow text.
+    while [ "$pal_name" ]; do
+        printf '\033[3%s;1m%s\033[m' \
+               "$((${#pal_name} % 5 + 1))" \
+               "${pal_name%${pal_name#?}*}" >&6
+
+        pal_name=${pal_name#?}
+    done; printf '\n\n' >&6
+
+    # Colors 0-7.
+    for i in 0 1 2 3 4 5 6 7; do
+        printf '\033[48;5;%sm  \033[m' "$i" >&6
+    done; printf '\n' >&6
+
+    # Colors 8-16.
+    for i in 8 9 10 11 12 13 14 15; do
+        printf '\033[48;5;%sm  \033[m' "$i" >&6
+    done; printf '\n\n' >&6
+}
+
+arg() {
+    # Parse script arguments manually. This is rather easy to do in
+    # our case since the first argument is always an "action" and
+    # the arguments that follow are all package names.
+    action=$1
+
+    # 'dash' exits on error here if 'shift' is used and there are zero
+    # arguments despite trapping the error ('|| :').
+    shift "$(($# ? 1 : 0))"
+
+    # Error early when arguments are needed but none are passed.
+    case $action in
+        s|set) [ "$1" ] || die "$action needs an argument" ;;
+    esac
+
+    case $action in
+        l|list) pal_find >&6 ;;
+        s|set)  pal "$1"; seq; art ;;
+
+        *)  printf '%s [l|s] [palette]\n\n' "${0##*/}" >&6
+            printf 'list: List all palettes\n' >&6
+            printf 'set:  Set a pelette\n' >&6
+    esac
+}
+
+main() {
+    # Speed things up by disabling the use of unicode
+    # and sticking to the C locale..
+    export LC_ALL=C 
+
+    # Hide stdout/stderr by default to allow for selective
+    # and controlled printing to the two.
+    exec 6>&1 >/dev/null
+
+    # Create the cache directory which will store the
+    # palettes and other needed data.
+    mkdir -p "${cac:=${XDG_CONFIG_HOME:=$HOME/.config}/${0##*/}}/palettes"
+
+    arg "$@"
+}
+
+main "$@"
