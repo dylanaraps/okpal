@@ -174,7 +174,9 @@ main() {
 
     # Create the cache directory which will store the
     # palettes and other needed data.
-    mkdir -p "${conf:=${XDG_CONFIG_HOME:=$HOME/.config}/${0##*/}}/palettes"
+    mkdir -p "${conf:=${XDG_CONFIG_HOME:=$HOME/.config}/${0##*/}}/palettes" \
+             "$conf/palettes/dark" \
+             "$conf/palettes/light"
 
     args "$@"
 }
