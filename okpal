@@ -5,30 +5,6 @@ die() {
     exit 1
 }
 
-hex2rgb() {
-    set -- "${1##\#}"
-
-    # Ensure that we're dealing with hex that is
-    # six characters in length.
-    case ${#1}$1 in 6*[G-Zg-z]*)
-        die "Invalid hex input"
-    esac
-
-    # Split the string into three portions in a
-    # really lazy way.
-    r=${1%%????}
-    g=${1##??}
-    g=${g%%??}
-    b=${1##????}
-
-    # This is quite possibly _not_ POSIX shell.
-    # This can also cause the shell to crash when
-    # fed invalid input. Fun stuff. TODO TODO
-    r=$((0x$r))
-    g=$((0x$g))
-    b=$((0x$b))
-}
-
 read_palette() {
     # Where does the desired palette reside?
     dir=palettes/$mode/$1
@@ -97,72 +73,28 @@ make_sequences() {
 print_palette() {
     # Construst a palette of the generated colorscheme
     # so the user can see what it looks like straight away.
-    set_bg() { printf "\033[48;2;%sm" "${1:-$br};${2:-$bg};${3:-$bb}" >&6; }
-    set_fg() { printf "\033[38;2;%sm" "${1:-$fr};${2:-$fg};${3:-$fb}" >&6; }
-    pprint() { set_bg; set_fg; printf "$@" >&6; printf '\033[m' >&6; }
-
-    # Grab and store the RGB values of the background/foreground
-    # colors so that we can draw a true color box.
-    hex2rgb "$background"; br=$r bg=$g bb=$b
-    hex2rgb "$foreground"; fr=$r fg=$g fb=$b
-
-    pprint '%s\033[m\n' '+--------------------------------------------------+'
-    pprint '%s\033[m\n' '|                                                  |'
-    pprint '| Using palette: %s                                  |\033[m'
+    printf 'Using palette: %s/' "${palette%/*}" >&6
 
     pal_name=${palette##*/}
-    printf '\r\033[17C' >&6
 
-    # Rainbow text (useless but oh so pretty). Also involves some
-    # fuckery to iterate over a string char by char in pure POSIX shell.
+    # Rainbow text.
     while [ "$pal_name" ]; do
-        set -- "$color00" "$color01" "$color02" "$color03" "$color04" \
-               "$color05" "$color06" "$color07" "$color08" "$color09" \
-               "$color10" "$color11" "$color12" "$color13" "$color14" \
-               "$color15" "$background" "$foreground" "$cursor"
-
-        shift "$((${#pal_name} % 5 + 1))"
-        hex2rgb "$1"
-
-        pprint "\033[38;2;%s;%s;%s;1m%s" \
-            "$r" "$g" "$b" "${pal_name%${pal_name#?}*}" >&6
+        printf '\033[3%s;1m%s\033[m' \
+               "$((${#pal_name} % 5 + 1))" \
+               "${pal_name%${pal_name#?}*}" >&6
 
         pal_name=${pal_name#?}
-    done
-
-    pprint ' |\n' >&6
-    pprint '%s\033[m' '|                                                  |'
-    pprint '\n| '
+    done; printf '\n\n' >&6
 
     # Colors 0-7.
     for i in 0 1 2 3 4 5 6 7; do
-        set -- "$color00" "$color01" "$color02" "$color03" "$color04" \
-               "$color05" "$color06" "$color07" "$color08"
-
-        shift "$i"; hex2rgb "$1"
-
-        printf "\033[48;2;%s;%s;%sm      \033[m" "$r" "$g" "$b" >&6
-    done
-
-    pprint ' |\033[m\n| ' >&6
+        printf '\033[48;5;%sm  \033[m' "$i" >&6
+    done; printf '\n' >&6
 
     # Colors 8-16.
     for i in 8 9 10 11 12 13 14 15; do
-        set -- "$color00" "$color01" "$color02" "$color03" "$color04" \
-               "$color05" "$color06" "$color07" "$color08" "$color09" \
-               "$color10" "$color11" "$color12" "$color13" "$color14" \
-               "$color15" "$background" "$foreground" "$cursor"
-
-        shift "$i"; hex2rgb "$1"
-
-        printf "\033[48;2;%s;%s;%sm      \033[m" "$r" "$g" "$b" >&6
-    done
-
-    pprint ' |\n' >&6
-    pprint '%s\n' '|                                                  |' >&6
-    pprint '%s\n\033[K' '+--------------------------------------------------+'
-
-    # printf '\n\n' >&6
+        printf '\033[48;5;%sm  \033[m' "$i" >&6
+    done; printf '\n\n' >&6
 }
 
 list_palette() {
