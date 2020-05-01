@@ -31,6 +31,8 @@ make_sequences() {
     # Convert the list of colors into a series of
     # escape sequences which will then be applied
     # to each terminal.
+    #
+    # NOTE: These are embedded escape characters.
     seq_add() { seqs="$seqs]$1;#$2\\"; }
 
     # The regular 16 colors.
@@ -62,7 +64,7 @@ make_sequences() {
     [ "$VTE_VERSION" ] || seq_add 708 "$background"
 
     # Send the sequence list to every terminal device
-    # we have write permissions to.
+    # and finally, to a file for use in your shellrc.
     for tty in /dev/fd/0 /dev/pts/[0-9]* "$conf/sequences"; do
         printf %b "$seqs" > "$tty" 2>/dev/null &
     done
@@ -74,15 +76,13 @@ print_palette() {
     printf 'Using palette: %s/\033[1m%s\033[m\n\n' \
         "${palette%/*}" "${palette##*/}" >&6
 
-    # Colors 0-7.
-    for i in 0 1 2 3 4 5 6 7; do
-        printf '\033[48;5;%sm  \033[m' "$i" >&6
-    done; printf '\n' >&6
+    for i in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+        printf '\033[48;5;%sm  \033[m' "$i"
 
-    # Colors 8-15.
-    for i in 8 9 10 11 12 13 14 15; do
-        printf '\033[48;5;%sm  \033[m' "$i" >&6
-    done; printf '\n\n' >&6
+        [ "$i" = 7 ] && printf '\n'
+    done >&6
+
+    printf '\n\n' >&6
 }
 
 list_palette() {
