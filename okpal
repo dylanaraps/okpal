@@ -109,21 +109,14 @@ rand_palette() {
     # containing the random result.
     shift "$(($(
         tr -dc 1-9 < /dev/urandom |
-        dd ibs=1 obs=1 count=3 2>/dev/null
+        dd ibs=1 obs=1 count=2 2>/dev/null
     ) % $#))"
 
     # If the result doesn't exist, cycle through the list
     # until we find one which does.
-    while [ ! -f "$1" ] && [ "$1" ]; do
-        shift
-    done
+    while [ ! -f "$1" ] && [ "$2" ]; do shift; done
 
-    j=$((j + 1))
-
-    # Keep going until we find a random result but stop
-    # if we've done so 3 times already..
-    [ "$j" -gt 3 ] && die "Palette not found"
-    [ "$j" -gt 3 ] || [ -f "$1" ] || rand_palette "$@"
+    [ -f "$1" ] || die "Palette not found"
 
     palette=$1
 }
