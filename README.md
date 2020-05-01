@@ -27,5 +27,5 @@ Add the following to your .shellrc file.
 
 ## TODO
 
-- [ ] Some light palettes are in dark/ and vice versa.
+- [ ] Start again with palettes. It's a mess!
 - [ ] Add support for macOS and BSD.
