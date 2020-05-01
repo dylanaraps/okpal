@@ -12,8 +12,8 @@ Swap on the fly between a bunch of palettes.
 ## Installation
 
 ```sh
-# 'okpal' goes in '/usr/bin'.
-# 'palettes/' goes in '/etc/okpak/'.
+# okpal     -> /usr/bin/okpal
+# palettes/ -> /etc/okpak/palettes
 make install
 ```
 
