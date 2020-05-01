@@ -5,24 +5,55 @@ die() {
     exit 1
 }
 
-pal() {
-    # Where does the desired palette reside?
-    [ -f "/etc/okpal/palettes/$1" ] && palette=/etc/okpal/palettes/$1
-    [ -f "$cac/palettes/$1" ]       && palette=$cac/palettes/$1
-    [ -f "palettes/$1" ]            && palette=palettes/$1
-    [ -f "$1" ]                     && palette=$1
+hex2rgb() {
+    set -- "${1##\#}"
 
-    # Each line in the palette file is a valid shell 
+    # Ensure that we're dealing with hex that is
+    # six characters in length.
+    case ${#1}$1 in 6*[G-Zg-z]*)
+        die "Invalid hex input"
+    esac
+
+    # Split the string into three portions in a
+    # really lazy way.
+    r=${1%%????}
+    g=${1##??}
+    g=${g%%??}
+    b=${1##????}
+
+    # This is quite possibly _not_ POSIX shell.
+    # This can also cause the shell to crash when
+    # fed invalid input. Fun stuff. TODO TODO
+    r=$((0x$r))
+    g=$((0x$g))
+    b=$((0x$b))
+}
+
+read_palette() {
+    # Where does the desired palette reside?
+    dir=palettes/$mode/$1
+
+    [ -f "/etc/okpal/$dir" ] && palette=/etc/okpal/$dir
+    [ -f "$cac/$dir" ]       && palette=$cac/$dir
+    [ -f "$dir" ]            && palette=$dir
+    [ -f "$1" ]              && palette=$1
+    [ -f "$palette" ]        || die "No palette found"
+
+    # Each line in the palette file is a valid shell
     # variable. This simply exports all of them into
     # the script's environment.
     while read -r line; do i=$((i + 1))
         export "${line?Invalid palette file}" || die
-    done < "${palette:?Palette not found}"
+    done < "$palette"
 
-    [ "$i" -eq 15 ] || die "Missing fields in palette file"
+    # Ensure that we have only the fields we need.
+    [ "$i" -eq 19 ] || die "Missing fields in palette file"
+
+    # Store the name of the current palette.
+    printf '%s\n' "$palette" > "$cac/current"
 }
 
-seq() {
+make_sequences() {
     # Convert the list of colors into a series of
     # escape sequences which will then be applied
     # to each terminal.
@@ -58,67 +89,160 @@ seq() {
 
     # Send the sequence list to every terminal device
     # we have write permissions to.
-    for tty in /dev/fd/0 /dev/pts/[0-9]*; do 
-        [ ! -w "$tty" ] || printf %b "$seqs" > "$tty" &
+    for tty in /dev/fd/0 /dev/pts/[0-9]* "$cac/sequences"; do
+        printf %b "$seqs" > "$tty" 2>/dev/null &
     done
 }
 
-art() {
+print_palette() {
     # Construst a palette of the generated colorscheme
     # so the user can see what it looks like straight away.
-    printf 'Using palette: %s/' "${palette%/*}" >&6
+    set_bg() { printf "\033[48;2;%sm" "${1:-$br};${2:-$bg};${3:-$bb}" >&6; }
+    set_fg() { printf "\033[38;2;%sm" "${1:-$fr};${2:-$fg};${3:-$fb}" >&6; }
+    pprint() { set_bg; set_fg; printf "$@" >&6; printf '\033[m' >&6; }
+
+    # Grab and store the RGB values of the background/foreground
+    # colors so that we can draw a true color box.
+    hex2rgb "$background"; br=$r bg=$g bb=$b
+    hex2rgb "$foreground"; fr=$r fg=$g fb=$b
+
+    pprint '%s\033[m\n' '+--------------------------------------------------+'
+    pprint '%s\033[m\n' '|                                                  |'
+    pprint '| Using palette: %s                                  |\033[m'
 
     pal_name=${palette##*/}
+    printf '\r\033[17C' >&6
 
-    # Rainbow text.
+    # Rainbow text (useless but oh so pretty). Also involves some
+    # fuckery to iterate over a string char by char in pure POSIX shell.
     while [ "$pal_name" ]; do
-        printf '\033[3%s;1m%s\033[m' \
-               "$((${#pal_name} % 5 + 1))" \
-               "${pal_name%${pal_name#?}*}" >&6
+        set -- "$color00" "$color01" "$color02" "$color03" "$color04" \
+               "$color05" "$color06" "$color07" "$color08" "$color09" \
+               "$color10" "$color11" "$color12" "$color13" "$color14" \
+               "$color15" "$background" "$foreground" "$cursor"
+
+        shift "$((${#pal_name} % 5 + 1))"
+        hex2rgb "$1"
+
+        pprint "\033[38;2;%s;%s;%s;1m%s" \
+            "$r" "$g" "$b" "${pal_name%${pal_name#?}*}" >&6
 
         pal_name=${pal_name#?}
-    done; printf '\n\n' >&6
+    done
+
+    pprint ' |\n' >&6
+    pprint '%s\033[m' '|                                                  |'
+    pprint '\n| '
 
     # Colors 0-7.
     for i in 0 1 2 3 4 5 6 7; do
-        printf '\033[48;5;%sm  \033[m' "$i" >&6
-    done; printf '\n' >&6
+        set -- "$color00" "$color01" "$color02" "$color03" "$color04" \
+               "$color05" "$color06" "$color07" "$color08"
+
+        shift "$i"; hex2rgb "$1"
+
+        printf "\033[48;2;%s;%s;%sm      \033[m" "$r" "$g" "$b" >&6
+    done
+
+    pprint ' |\033[m\n| ' >&6
 
     # Colors 8-16.
     for i in 8 9 10 11 12 13 14 15; do
-        printf '\033[48;5;%sm  \033[m' "$i" >&6
-    done; printf '\n\n' >&6
+        set -- "$color00" "$color01" "$color02" "$color03" "$color04" \
+               "$color05" "$color06" "$color07" "$color08" "$color09" \
+               "$color10" "$color11" "$color12" "$color13" "$color14" \
+               "$color15" "$background" "$foreground" "$cursor"
+
+        shift "$i"; hex2rgb "$1"
+
+        printf "\033[48;2;%s;%s;%sm      \033[m" "$r" "$g" "$b" >&6
+    done
+
+    pprint ' |\n' >&6
+    pprint '%s\n' '|                                                  |' >&6
+    pprint '%s\n\033[K' '+--------------------------------------------------+'
+
+    # printf '\n\n' >&6
 }
 
-arg() {
-    # Parse script arguments manually. This is rather easy to do in
-    # our case since the first argument is always an "action" and
-    # the arguments that follow are all package names.
-    action=$1
+list_palette() {
+    # Print all palettes found in all config locations.
+    # This also filters out duplicates at the same time.
+    for pal in "palettes/$mode/"* \
+               "$cac/palettes/$mode/"* \
+               "/etc/okpal/palettes/$mode/"*
+    do
+        # Skip this one, we've seen it already.
+        case $seen in *" ${pal##*/} "*) continue; esac
 
-    # 'dash' exits on error here if 'shift' is used and there are zero
-    # arguments despite trapping the error ('|| :').
-    shift "$(($# ? 1 : 0))"
+        [ -f "$pal" ] && {
+            seen=" $seen ${pal##*/} "
+            printf '%s\n' "${pal##*/}"
+        }
+    done >&6
+}
 
-    # Error early when arguments are needed but none are passed.
-    case $action in
-        s|set) [ "$1" ] || die "$action needs an argument" ;;
-    esac
+rand_palette() {
+    # Grab a random palette from all applicable paths in
+    # the user's system. We have no access to $RANDOM sadly.
+    set -- "palettes/$mode/"* \
+           "$cac/palettes/$mode/"* \
+           "/etc/okpal/palettes/$mode/"*
 
-    case $action in
-        l|list) pal_find >&6 ;;
-        s|set)  pal "$1"; seq; art ;;
+    # Shift the list a random amount leaving us with '$1'
+    # containing the random result.
+    shift "$(($(
+        tr -dc 1-9 < /dev/urandom |
+        dd ibs=1 obs=1 count=3 2>/dev/null
+    ) % $#))"
 
-        *)  printf '%s [l|s] [palette]\n\n' "${0##*/}" >&6
-            printf 'list: List all palettes\n' >&6
-            printf 'set:  Set a pelette\n' >&6
-    esac
+    # If the result doesn't exist, cycle through the list
+    # until we find one which does.
+    while [ ! -f "$1" ] && [ "$1" ]; do
+        shift
+    done
+
+    j=$((j + 1))
+
+    # Keep going until we find a random result but stop
+    # if we've done so 3 times already..
+    [ "$j" -gt 3 ] && die "Palette not found"
+    [ "$j" -gt 3 ] || [ -f "$1" ] || rand_palette
+
+    palette=$1
+}
+
+args() {
+    # Parse the options "inline" instead of via a function
+    # so that we can mofigy the script's global argument list.
+    mode=dark
+
+    while getopts lLrs:v opt; do case $opt in
+        l) list=1 ;;
+        L) mode=light ;;
+        r) rand=1 ;;
+        s) palette=$OPTARG ;;
+        v) die "0.0.1" ;;
+        *) die "usage: ${0##*/} [-s palette | -r] [-l|-v]" ;;
+    esac; done
+
+    [ "$list" ] &&
+        list_palette
+
+    [ "$rand" ] &&
+        rand_palette
+
+    [ "$palette" ] && [ -z "$list" ] && {
+        read_palette "$palette"
+        make_sequences
+        print_palette
+    }
 }
 
 main() {
     # Speed things up by disabling the use of unicode
     # and sticking to the C locale..
-    export LC_ALL=C 
+    export LC_ALL=C
 
     # Hide stdout/stderr by default to allow for selective
     # and controlled printing to the two.
@@ -128,7 +252,7 @@ main() {
     # palettes and other needed data.
     mkdir -p "${cac:=${XDG_CONFIG_HOME:=$HOME/.config}/${0##*/}}/palettes"
 
-    arg "$@"
+    args "$@"
 }
 
 main "$@"
