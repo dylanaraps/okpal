@@ -91,7 +91,7 @@ print_palette() {
         printf '\033[48;5;%sm  \033[m' "$i" >&6
     done; printf '\n' >&6
 
-    # Colors 8-16.
+    # Colors 8-15.
     for i in 8 9 10 11 12 13 14 15; do
         printf '\033[48;5;%sm  \033[m' "$i" >&6
     done; printf '\n\n' >&6
