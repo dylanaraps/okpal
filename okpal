@@ -7,13 +7,11 @@ die() {
 
 read_palette() {
     # Where does the desired palette reside?
-    dir=palettes/$mode/$1
-
-    [ -f "/etc/okpal/$dir" ] && palette=/etc/okpal/$dir
-    [ -f "$cac/$dir" ]       && palette=$cac/$dir
-    [ -f "$dir" ]            && palette=$dir
-    [ -f "$1" ]              && palette=$1
-    [ -f "$palette" ]        || die "No palette found"
+    [ -f "/etc/okpal/$dir/$1" ] && palette=/etc/okpal/$dir/$1
+    [ -f "$conf/$dir/$1" ]      && palette=$conf/$dir/$1
+    [ -f "$dir/$1" ]            && palette=$dir/$1
+    [ -f "$1" ]                 && palette=$1
+    [ -f "$palette" ]           || die "No palette found"
 
     # Each line in the palette file is a valid shell
     # variable. This simply exports all of them into
@@ -26,7 +24,7 @@ read_palette() {
     [ "$i" -eq 19 ] || die "Missing fields in palette file"
 
     # Store the name of the current palette.
-    printf '%s\n' "$palette" > "$cac/current"
+    printf '%s\n' "$palette" > "$conf/current"
 }
 
 make_sequences() {
@@ -65,7 +63,7 @@ make_sequences() {
 
     # Send the sequence list to every terminal device
     # we have write permissions to.
-    for tty in /dev/fd/0 /dev/pts/[0-9]* "$cac/sequences"; do
+    for tty in /dev/fd/0 /dev/pts/[0-9]* "$conf/sequences"; do
         printf %b "$seqs" > "$tty" 2>/dev/null &
     done
 }
@@ -73,18 +71,8 @@ make_sequences() {
 print_palette() {
     # Construst a palette of the generated colorscheme
     # so the user can see what it looks like straight away.
-    printf 'Using palette: %s/' "${palette%/*}" >&6
-
-    pal_name=${palette##*/}
-
-    # Rainbow text.
-    while [ "$pal_name" ]; do
-        printf '\033[3%s;1m%s\033[m' \
-               "$((${#pal_name} % 5 + 1))" \
-               "${pal_name%${pal_name#?}*}" >&6
-
-        pal_name=${pal_name#?}
-    done; printf '\n\n' >&6
+    printf 'Using palette: %s/\033[1m%s\033[m\n\n' \
+        "${palette%/*}" "${palette##*/}" >&6
 
     # Colors 0-7.
     for i in 0 1 2 3 4 5 6 7; do
@@ -100,10 +88,7 @@ print_palette() {
 list_palette() {
     # Print all palettes found in all config locations.
     # This also filters out duplicates at the same time.
-    for pal in "palettes/$mode/"* \
-               "$cac/palettes/$mode/"* \
-               "/etc/okpal/palettes/$mode/"*
-    do
+    for pal do
         # Skip this one, we've seen it already.
         case $seen in *" ${pal##*/} "*) continue; esac
 
@@ -119,9 +104,6 @@ list_palette() {
 rand_palette() {
     # Grab a random palette from all applicable paths in
     # the user's system. We have no access to $RANDOM sadly.
-    set -- "palettes/$mode/"* \
-           "$cac/palettes/$mode/"* \
-           "/etc/okpal/palettes/$mode/"*
 
     # Shift the list a random amount leaving us with '$1'
     # containing the random result.
@@ -141,7 +123,7 @@ rand_palette() {
     # Keep going until we find a random result but stop
     # if we've done so 3 times already..
     [ "$j" -gt 3 ] && die "Palette not found"
-    [ "$j" -gt 3 ] || [ -f "$1" ] || rand_palette
+    [ "$j" -gt 3 ] || [ -f "$1" ] || rand_palette "$@"
 
     palette=$1
 }
@@ -169,9 +151,16 @@ args() {
         ;;
     esac; done
 
-    [ "$1" ]       || args -h
-    [ "$list" ]    && list_palette
-    [ "$rand" ]    && rand_palette
+    # If there are no arguments, simply call the arguments
+    # function again with '-h' to show help.
+    [ "$1" ] || args -h
+
+    # Populate the argument list with every palette on
+    # the machine for use in multiple functions below.
+    set -- "${dir:=palettes/$mode/}"* "$conf/$dir"* "/etc/okpal/$dir"*
+
+    [ "$list" ]    && list_palette "$@"
+    [ "$rand" ]    && rand_palette "$@"
     [ "$palette" ] || args -h
 
     [ "$palette" ] && [ -z "$list" ] && {
@@ -192,7 +181,7 @@ main() {
 
     # Create the cache directory which will store the
     # palettes and other needed data.
-    mkdir -p "${cac:=${XDG_CONFIG_HOME:=$HOME/.config}/${0##*/}}/palettes"
+    mkdir -p "${conf:=${XDG_CONFIG_HOME:=$HOME/.config}/${0##*/}}/palettes"
 
     args "$@"
 }
