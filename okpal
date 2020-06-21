@@ -126,17 +126,19 @@ args() {
     # so that we can mofigy the script's global argument list.
     mode=dark
 
-    while getopts hlLrs:v opt; do case $opt in
+    while getopts hlpLrs:v opt; do case $opt in
         l) list=1 ;;
+        p) die "$(cat $conf/$dir/current)" ;;
         L) mode=light ;;
         r) rand=1 ;;
         s) palette=$OPTARG ;;
         v) die "0.0.1" ;;
 
         *)
-            die "usage: ${0##*/} [-s palette|-L|-r] [-l|-v]" \
+            die "usage: ${0##*/} [-s palette|-L|-r] [-l|-p|-v]" \
                 "-s palette  Select a palette" \
                 "-l          List all palettes" \
+                "-p          Print current pallete" \
                 "-r          Select a random palette" \
                 "-L          Set light themes (modifier for -s/-r)" \
                 "-h          Show this information" \
